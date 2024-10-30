@@ -16,7 +16,7 @@ class DMCEnv:
                  action_repeat=1,
                  im_size=84):
 
-        import dmc
+        import envs.dmc as dmc 
         self.env = dmc.make(env_name,
                             obs_type=obs_type,
                             seed=seed,
@@ -79,4 +79,4 @@ class DMCEnv:
         with open(f'{data_dir}/{self.env_name}/trajectory-{seed}.pkl', 'rb') as f:
             states, actions = pickle.load(f)
     
-        return np.array(states[:1000]), np.array(actions[:1000])
+        return np.array(states), np.array(actions)

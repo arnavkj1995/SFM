@@ -48,14 +48,16 @@ class ReplayBuffer(object):
 
         self.size = min(self.size + 1, self.max_size)
 
-    def sample(self):
-        self.ind = np.random.randint(0, self.size, size=self.batch_size)
+    def sample(self, batch_size=None):
+        if not batch_size:
+            batch_size = self.batch_size
+        self.ind = np.random.randint(0, self.size, size=batch_size)
 
         ep_ind = self.ind // self.ep_len
         step_ind = self.ind % self.ep_len
 
         if self._future < 1:
-            future_ind = step_ind + np.random.geometric(p=(1 - self._future), size=self.batch_size)
+            future_ind = step_ind + np.random.geometric(p=(1 - self._future), size=batch_size)
             future_ind = np.clip(future_ind, 0, self.ep_len - 1)
 
         return (
@@ -66,3 +68,8 @@ class ReplayBuffer(object):
             np.array(self.not_done[ep_ind, step_ind], dtype=np.float32),
             np.array(self.state[ep_ind, future_ind], dtype=np.float32)
         )
+    
+    def reset(self):
+        self.ptr = 0
+        self.ep_id = 0
+        self.size = 0

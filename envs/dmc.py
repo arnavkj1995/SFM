@@ -7,7 +7,7 @@ from dm_control import manipulation, suite
 from dm_control.suite.wrappers import action_scale, pixels
 from dm_env import StepType, specs
 
-import custom_dmc_tasks as cdmc
+import envs.custom_dmc_tasks as cdmc
 
 import gym
 

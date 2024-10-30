@@ -12,7 +12,7 @@ from flax.training import train_state
 
 
 from typing import Union, Tuple
-from utils import TrainState
+from .utils import TrainState
 
 Params = flax.core.FrozenDict[str, tp.Any]
 
