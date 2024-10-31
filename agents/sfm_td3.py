@@ -71,7 +71,7 @@ class Args:
     """the scale of exploration noise"""
     learning_starts: int = 25e3
     """timestep to start learning"""
-    update_actor_frequency: int = 1
+    update_actor_frequency: int = 2
     """the frequency of training policy (delayed)"""
     buffer_size: int = int(1e6)
     """the replay memory buffer size"""
