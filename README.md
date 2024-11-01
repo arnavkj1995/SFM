@@ -7,12 +7,12 @@ Implementation of introduced SFM agent and the baselines-- Behavior Cloning (BC)
 by [Arnav Kumar Jain](https://arnavkj1995.github.io/), [Harley Wiltzer](https://harwiltz.github.io/), [Jesse Farebrother](https://brosa.ca/), [Irina Rish](https://sites.google.com/view/irinarish/), [Glen Berseth](https://neo-x.github.io/), and [Sanjiban Choudhury](https://sanjibanc.github.io/)
 
 
-This work proposes Successor Feature Matching (SFM) a state-only non-adversarial algorithm for matching expected features between the agent and the expert. Specifically, SFM derives a feature-matching imitation policy by __direct policy optimization__ via policy gradient descent, and \emph{learns} the state-only base features simultaneously during training. This reduction to RL allows using any off-the-shelf RL policy optimizer-- as we conduct experiments with backbones analgous to TD3 and TD7. 
+This work proposes Successor Feature Matching (SFM) a state-only non-adversarial algorithm for matching expected features between the agent and the expert. Specifically, SFM derives a feature-matching imitation policy by __direct policy optimization__ via policy gradient descent, and __learns the state-only base features__ simultaneously during training. This reduction to RL allows using any off-the-shelf RL policy optimizer-- as we conduct experiments with backbones analgous to TD3 and TD7. 
 
 ![Alt text](figs/rliable_td7.png)
 
 ## Setup
-We use ```pdm``` to manage the dependencies. This repository makes use of Jax, Flax, Optax and Chex. Using the ```pdm.lock``` file, the dependencies can be installed by running the following commands:
+We use ```pdm``` to manage the dependencies. This repository makes use of [Jax](https://github.com/google/jax), [Flax](https://github.com/google/flax), [Optax](https://github.com/google-deepmind/optax) and [Chex](https://github.com/google-deepmind/chex). Using the ```pdm.lock``` file, the dependencies can be installed by running the following commands:
 
 ```
 pdm venv create
@@ -29,7 +29,7 @@ The expert demonstrations used for this project are provided in the ```expert\${
 To generate new expert demonstrations, we used TD3 algorithm implemented ```sbx-rl``` which can be run using ```python expert/collect_demos.py```.
 
 ## Training
-Agents can be trained using:
+The following command trains an agent
 ```
 python agents/${AGENT}_${POLICY} --env $ENV_NAME --seed $SEED 
 ```
@@ -46,7 +46,10 @@ For training ```SFM``` with TD3-based policy optimizer and ```fdm``` as the base
 python agents/mm_td7.py --env cheetah_run --seed 1 --phi_name fdm
 ```
 
-To run the local Aim server you can simply run: `pdm run aim` and then navigate to the provided URL.
+For training Behavior Cloning (BC) on ```cheetah_run``` environment, run
+```
+python agents/bc.py --env cheetah_run --seed 1
+```
 
 ## Citation
 If you build on our work or find it useful, please cite it using the following bibtex.
