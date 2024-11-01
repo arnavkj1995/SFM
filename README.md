@@ -1,6 +1,6 @@
 # Successor Feature Matching
 
-Implementation of introduced SFM agent and the baselines-- Behavior Cloning (BC), state-only Moment Matching (MM) and GAIfO.
+Official implementation of Successor Feature Matching (SFM) along with state-only imitation learning baselines.
 
 ### [Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching]() 
 
@@ -36,7 +36,7 @@ python agents/${AGENT}_${POLICY} --env $ENV_NAME --seed $SEED
 where ```AGENT``` takes values ```sfm``` for our method SFM, ```mm``` for state-only Moment Matching (MM) and ```gaifo``` for GAIfO, and ```POLICY``` takes values ```td7``` and ```td3``` to use the TD7 or TD3 based policy optimization algorithm.
 
 #### Example
-To train ```MM``` with TD7-policy optimizer on ```cheetah_run``` environment.
+For training ```MM``` with TD7-policy optimizer on ```cheetah_run``` environment.
 ```
 python agents/mm_td7.py --env cheetah_run --seed 1
 ```
