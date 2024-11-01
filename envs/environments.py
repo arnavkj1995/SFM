@@ -1,9 +1,6 @@
 from typing import Tuple
 
-import gymnasium as gym
 import pickle
-
-from gymnasium.spaces import Box, Space
 import numpy as np
 
 
@@ -74,7 +71,7 @@ class DMCEnv:
     def get_expert_traj(self,
                         seed: int = 0):
 
-        data_dir = "/home/mila/a/arnav-kumar.jain/scratch/IL/expert-trajectories"
+        data_dir = "expert-trajectories"
 
         with open(f'{data_dir}/{self.env_name}/trajectory-{seed}.pkl', 'rb') as f:
             states, actions = pickle.load(f)
