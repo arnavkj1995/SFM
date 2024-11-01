@@ -385,7 +385,7 @@ def _make_dmc(obs_type, domain, task, frame_stack, action_repeat, seed):
     return env
 
 
-def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1):
+def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1, convert_to_gym=True):
     assert obs_type in ['states', 'pixels']
     if name.startswith('point_mass_maze'):
         domain = 'point_mass_maze'
@@ -404,5 +404,6 @@ def make(name, obs_type='states', frame_stack=1, action_repeat=1, seed=1):
 
     env = action_scale.Wrapper(env, minimum=-1.0, maximum=+1.0)
     env = ExtendedTimeStepWrapper(env)
-    env = TimeStepToGymWrapper(env, max_episode_steps=int(1000 / action_repeat), obs_type=obs_type, domain=domain, task=task)
+    if convert_to_gym:
+        env = TimeStepToGymWrapper(env, max_episode_steps=int(1000 / action_repeat), obs_type=obs_type, domain=domain, task=task)
     return env

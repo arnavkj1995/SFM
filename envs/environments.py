@@ -56,22 +56,21 @@ class DMCEnv:
         self.env.close()
 
     @property
-    def observation_space(self) -> Space:
+    def observation_space(self):
         return self.env.observation_space
 
     @property
-    def action_space(self) -> Space:
+    def action_space(self):
         return self.env.action_space
 
     @property
-    def max_episode_steps(self) -> int:
+    def max_episode_steps(self):
         return self.env.max_episode_steps
 
 
-    def get_expert_traj(self,
-                        seed: int = 0):
+    def get_expert_traj(self, seed: int = 0):
 
-        data_dir = "expert-trajectories"
+        data_dir = "expert"
 
         with open(f'{data_dir}/{self.env_name}/trajectory-{seed}.pkl', 'rb') as f:
             states, actions = pickle.load(f)
