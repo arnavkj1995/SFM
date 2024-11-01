@@ -1,3 +1,6 @@
+'''
+The environment wrappers are obtained from https://github.com/facebookresearch/controllable_agent
+'''
 from collections import OrderedDict, deque, defaultdict
 from typing import Any, NamedTuple
 
@@ -7,7 +10,7 @@ from dm_control import manipulation, suite
 from dm_control.suite.wrappers import action_scale, pixels
 from dm_env import StepType, specs
 
-import envs.custom_dmc_tasks as cdmc
+import env.custom_dmc_tasks as cdmc
 
 import gym
 
