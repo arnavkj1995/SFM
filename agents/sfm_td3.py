@@ -1,3 +1,4 @@
+# Inspired from the Jax implementation of TD3 in CleanRL (https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/td3_continuous_action_jax.py)
 import sys
 
 import tyro

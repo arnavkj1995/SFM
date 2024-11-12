@@ -55,7 +55,11 @@ python agents/bc.py --env cheetah_run --seed 1
 If you build on our work or find it useful, please cite it using the following bibtex.
 
 ```bibtex
-@article{
+@article{jain2024sfm,
+    title={Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching},
+    author={Arnav Kumar Jain and Harley Wiltzer and Jesse Farebrother and Irina Rish and Glen Berseth and Sanjiban Choudhury},
+    journal={arXiv preprint arXiv:2411.07007},
+    year={2024},
 }
 ```
 
