@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching</title>
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR88D4MJ0H"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+  
+    gtag('config', 'G-QR88D4MJ0H');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/icon.png">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">Non-Adversarial Inverse Reinforcement Learning via <br> Successor Feature Matching</h1>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://arnavkj1995.github.io/">Arnav Kumar Jain<sup>1,2</sup></a>,</span>
+            <span class="author-block">
+              <a href="https://harwiltz.github.io/">Harley Wiltzer<sup>1,3</sup></a>,</span>
+            <span class="author-block">
+                <a href="https://brosa.ca/">Jesse Farebrother<sup>1,3</sup></a>,</span>
+            <span class="author-block">
+                <a href="https://sites.google.com/view/irinarish/">Irina Rish<sup>1,2</sup></a>,</span>
+                <span class="author-block">
+                  <a href="https://neo-x.github.io/">Glen Berseth<sup>1,2</sup></a>,</span>
+            <span class="author-block">
+                <a href="https://www.sanjibanchoudhury.com/">Sanjiban Choudhury<sup>4</sup></a>            
+          </div>
+          <div class="is-size-4">
+            <font size="4.5">
+            <sup>1</sup>Mila-Quebec AI Institute,  
+            <sup>2</sup>Université de Montréal, 
+            <sup>3</sup>McGill University, 
+            <sup>4</sup>Cornell University
+            </font>
+          </div>
+
+          <br>
+          <div class="is-size-4">
+          <img src="./static/images/mila-logo.png" width="15%" hspace="20" ></img>
+          <img src="./static/images/udem-logo.png" width="12%" hspace="20"></img>
+          <img src="./static/images/mcgill-logo.png" width="15%" hspace="20"></img>
+          <img src="./static/images/cornell-university-logo.png" width="18%" hspace="20"></img>
+          </div>
+          
+          <div class="column has-text-centered">
+            
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <span class="link-block">
+                <a href="https://arxiv.org/pdf/2411.07007"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://arxiv.org/abs/2411.07007"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="ai ai-arxiv"></i>
+                  </span>
+                  <span>arXiv</span>
+                </a>
+              </span>
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/arnavkj1995/SFM"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h1 class="title is-3">SFM is a non-adversarial approach for Inverse RL and can learn from state-only demonstrations.</h1>
+        <br>
+        <img src="./static/images/bar_plot.png" width="500">
+        </div>
+    </div>
+    <!-- Dataset -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+          <p style="text-align: left;">
+            In inverse reinforcement learning (IRL), an agent seeks to replicate expert demonstrations through interactions with the environment.
+            Traditionally, IRL is treated as an adversarial game, where an adversary searches over reward models, and a learner optimizes the reward through repeated RL procedures.
+            This game-solving approach is both computationally expensive and difficult to stabilize.
+            In this work, we propose a novel approach to IRL by direct policy optimization: exploiting a linear factorization of the return as the inner product of successor features and a reward vector, we design an IRL algorithm by policy gradient descent on the gap between the learner and expert features.
+            Our non-adversarial method does not require learning a reward function and can be solved seamlessly with existing actor-critic RL algorithms.
+            Remarkably, our approach works in state-only settings without expert action labels, a setting which behavior cloning (BC) cannot solve.
+            Empirical results demonstrate that our method learns from as few as a single expert demonstration and achieves improved performance on various control tasks.
+          </p>
+      </div>
+    </div>
+    <br>
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Overview</h2>
+        <p style="text-align: left;">
+          Adversarial IRL faces some well-documented challenges: requires tricks to stabilize learning and repeatedly solving a costly RL problem in the inner loop of bilevel optimization. 
+          The task becomes even more challenging without access to expert actions in demonstrations.
+          We present a simpler approach for imitation learning– which we call Successor Feature Matching (SFM).
+          SFM minimizes the gap between expected features using direct policy optimization via reduction to a RL problem.
+          Furthermore, with state-only base features to estimate SF, we show that SFM can learn imitation policy without action labels in demonstrations. 
+          A brief pseudocode for the learning procedure is provided below.
+          <!-- <br> -->
+          <!-- In doing so, SFM is the only online method capable of learning from a single unlabeled demonstration without requiring an expensive and difficult-to-stabilize bilevel optimization. -->
+        </li>
+      </p>
+      <br>
+        <img src="./static/images/pseudocode.png" width="800">
+      
+      </div>
+    </div> 
+    
+  <div class="columns is-centered has-text-centered">
+    <div class="column">
+      <h2 class="title is-3">Results</h2>
+      <p style="text-align: left;">
+        We conduct experiments on 10 environments from the DMControl Suite and compare with supervised offline method Behavior Cloning (BC), a non-adversarial IRL method that uses expert action labels IQ-Learn, and our implementation of adversarial state-only baselines MM and GAIfO. 
+        The architecture of SFM and the state-only baselines is based on the TD7 algorithm.
+        Our method outperforms all baselines when trained with a single expert demonstration.
+      </p>
+      <br>
+      <img src="./static/images/rliable_td7.png">
+      <br>
+      <br>
+      <p style="text-align: left;">
+        We also experiment with a simpler RL optimizer where the architecture of SFM and the state-only baselines depend on the TD3 algorithm. 
+        Remarkably, the performance of SFM (TD3) is similar demonstrating the efficacy of our non-adversarial method to learn with other off-the-shelf RL algorithms. 
+        However, the adversarial baselines did not perform as well on top of TD3.
+      </p>
+      <br>
+      <img src="./static/images/rliable_td3.png">
+  </div>
+  
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+
+    <div class="columns is-centered has-text-centered">
+      <div class="column" id="Paper">
+        <h2 class="title is-3">Paper</h2>
+    <div class="paper-thumbnail">
+        <a href="https://arxiv.org/abs/2411.07007">
+            <img class="layered-paper-big" width="100%" src="./static/images/preview_sfm.png" alt="Paper thumbnail"/>
+        </a>
+    </div>
+    <div class="paper-info">
+        <h3 class="title is-4" style="text-align: center;">BibTex</h3>
+<pre style="overflow-x:hidden; text-wrap:wrap; white-space: pre-wrap;"><code>
+  @article{jain2024sfm,
+    title={Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching},
+    author={Arnav Kumar Jain and Harley Wiltzer and Jesse Farebrother and Irina Rish and Glen Berseth and Sanjiban Choudhury},
+    journal={CoRR},
+    volume={abs/2411.07007},
+    year={2024}
+}  
+</code></pre> 
+    </div>
+    </div>
+</div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-centered">
+          <p>
+            <a href="https://github.com/portal-cornell/MOSAIC/tree/gh-pages">Fork</a> of a <a href="https://github.com/nerfies/nerfies.github.io">fork</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
