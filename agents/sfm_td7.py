@@ -385,9 +385,10 @@ class SFM_TD7:
             ema_counter: jnp.int32,
             ema_decay: jnp.float32,
         ):
+
             zs_next = encoder.apply_fn(encoder.target_params,
-                                       s_next,
-                                       method="zs")
+                                        s_next,
+                                        method="zs")
             a_next = actor.apply_fn(actor.params,
                                     s_next,
                                     zs_next)
@@ -400,9 +401,8 @@ class SFM_TD7:
                                         a_next,
                                         zs_next,
                                         zsa_next)[0]
-
             E_phi = self._featurize_states(featurizer, E_traj_s)
-            
+
             ind = -2
             E_end_s = E_traj_s[ind:ind+1]
             E_end_zs = encoder.apply_fn(encoder.target_params,
@@ -412,9 +412,9 @@ class SFM_TD7:
                                      E_end_s,
                                      E_end_zs)
             E_end_zsa = encoder.apply_fn(encoder.target_params,
-                                        E_end_zs,
-                                        E_end_a,
-                                        method="zsa")
+                                         E_end_zs,
+                                         E_end_a,
+                                         method="zsa")
             E_end_SF = psi_net.apply_fn(psi_net.params,
                                         E_end_s,
                                         E_end_a,
@@ -450,11 +450,11 @@ class SFM_TD7:
                 Pi_SF = jnp.mean(psi - gamma * next_psi, axis=0, keepdims=True) / (1. - gamma)
 
                 Pi_SF_ema, _ = update_ema(Pi_SF,
-                                            Pi_SF_ema,
-                                            ema_decay,
-                                            ema_counter)
+                                          Pi_SF_ema,
+                                          ema_decay,
+                                          ema_counter)
 
-                L_im_gap_batch = (((E_SF_ema_debiased[0] - Pi_SF[0]) * (1. - gamma))**2)
+                L_im_gap_batch = (((E_SF_ema_debiased[0] - Pi_SF[0]) * (E_SF_ema_debiased[0] - Pi_SF_ema[0]) * (1. - gamma) * (1. - gamma)))
                 loss = L_im_gap_batch.sum()
 
                 return loss, {
@@ -520,7 +520,7 @@ class SFM_TD7:
 
             phi_state = self._featurize_states(featurizer, s)
 
-            target_psi = phi_state + gamma * jnp.clip(jnp.mean(target_psis, axis=0), min=min_target, max=max_target)
+            target_psi = phi_state + gamma * jnp.clip(jnp.mean(target_psis, axis=0), a_min=min_target, a_max=max_target)
 
             fixed_zs, fixed_zsa = encoder.apply_fn(encoder.target_params,
                                                    s,

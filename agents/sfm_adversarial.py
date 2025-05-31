@@ -316,7 +316,7 @@ class SFM_TD3:
                                             ema_decay,
                                             ema_counter)
 
-                L_im_gap_batch = (((E_SF_ema_debiased[0] - Pi_SF[0]) * (E_SF_ema_debiased[0] - Pi_SF_ema[0]) * (1. - gamma) * (1. - gamma)))
+                L_im_gap_batch = (((E_SF_ema_debiased[0] - Pi_SF[0]) * (1. - gamma))**2)
                 loss = L_im_gap_batch.sum()
 
                 return loss, {

@@ -15,6 +15,10 @@ import optax
 import numpy as np
 import jax.numpy as jnp
 import flax.linen as nn
+from tensorflow_probability.substrates import jax as tfp
+
+tfd = tfp.distributions
+tfb = tfp.bijectors
 
 from envs.environments import DMCEnv
 from common.utils import get_discounted_sum, update_ema, TrainState
@@ -26,7 +30,7 @@ Params = flax.core.FrozenDict[str, Any]
 
 @dataclass
 class Args:
-    exp_name: str = "sfm"
+    exp_name: str = "sfm_sac"
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -80,7 +84,9 @@ class Args:
     """ the probability of sampling the future state (for Hilp features only)"""
     target_update_rate: int = 250
     """the frequency of updating the max / min of SFs"""
-    
+    num_a_samples: int = 3
+    """Number of action samples to take for estimating SFs"""
+
     # Actor parameters
     actor_lr: float = 3e-4
     """the learning rate of the optimizer"""
@@ -104,6 +110,17 @@ class Args:
     """the hidden dimension of the featurizer"""
     
 
+class Temperature(nn.Module):
+    initial_temperature: float = 0.2
+
+    @nn.compact
+    def __call__(self) -> jnp.ndarray:
+        log_temp = self.param('log_temp',
+                              init_fn=lambda key: jnp.full(
+                                  (), jnp.log(self.initial_temperature)))
+        return jnp.exp(log_temp)
+
+
 class PsiNetwork(nn.Module):
     hdim: int
     output_size: int
@@ -118,7 +135,7 @@ class PsiNetwork(nn.Module):
         x = nn.relu(x)
         x = nn.Dense(self.hdim, kernel_init=nn.initializers.orthogonal())(x)
         x = nn.relu(x)
-        x = nn.Dense(self.output_size, kernel_init=nn.initializers.orthogonal())(x)
+        x = nn.Dense(self.output_size + 1, kernel_init=nn.initializers.orthogonal())(x)
         return x
 
 
@@ -132,23 +149,47 @@ TwinPsiNetworks = nn.vmap(
 )
 
 
+from typing import Optional
+def default_init(scale: Optional[float] = jnp.sqrt(2)):
+    return nn.initializers.orthogonal(scale)
+
+
 class ActorNetwork(nn.Module):
     hdim: int
     action_dim: int
+    log_std_min: float = -2.5
+    log_std_max: float = 2.5
+    final_fc_init_scale: float = 1.0 
 
     @nn.compact
     def __call__(self,
-                 s: jnp.ndarray):
+                 s: jnp.ndarray,
+                 rng_key: jax.random.PRNGKey,
+                 temperature: float = 1.0):
         x = nn.Dense(self.hdim, kernel_init=nn.initializers.orthogonal())(s)
         x = nn.relu(x)
         x = nn.Dense(self.hdim, kernel_init=nn.initializers.orthogonal())(x)
         x = nn.relu(x)
-        x = nn.Dense(self.action_dim, kernel_init=nn.initializers.orthogonal())(x)
-        x = nn.tanh(x)
-        return x
+        x = nn.Dense(2 * self.action_dim,
+                     kernel_init=default_init(self.final_fc_init_scale)
+                    )(x)
+        
+        mean, log_std = jnp.split(x, 2, axis=-1)
+        log_std = nn.tanh(log_std)
+        log_std = self.log_std_min + 0.5 * (self.log_std_max - self.log_std_min) * (log_std + 1)  # From SpinUp / Denis Yarats
+        std = jnp.exp(log_std)
 
+        dist = tfd.Normal(loc=mean, scale=std)
+        x_t = dist.sample(seed=rng_key)
+        action = jnp.tanh(x_t)
+        log_prob = dist.log_prob(x_t)
 
-class SFM_TD3:
+        # log_prob -= jnp.log((1 - action ** 2) + 1e-6)
+        log_prob = log_prob.sum(axis=-1, keepdims=True)
+
+        return action, log_prob, jnp.tanh(mean)
+
+class SFM_SAC:
     def __init__(
         self,
         rng_key: jax.random.PRNGKey,
@@ -160,8 +201,10 @@ class SFM_TD3:
             self.rng_key,
             featurizer_rng_key,
             actor_rng_key,
+            init_actor_rng_key,
             psi_rng_key,
-        ) = jax.random.split(rng_key, 4)
+            temp_rng_key
+        ) = jax.random.split(rng_key, 6)
 
         self.polyak_factor = cfg.polyak_factor
         self.step = 0
@@ -170,6 +213,8 @@ class SFM_TD3:
         self.action_noise = cfg.action_noise
         self.update_actor_frequency = cfg.update_actor_frequency
         self.target_update_rate = cfg.target_update_rate
+        self.target_entropy = -action_size
+        self.num_a_samples = cfg.num_a_samples
 
         sample_state = jnp.zeros((state_size,))
         sample_action = jnp.zeros((action_size,))
@@ -190,9 +235,9 @@ class SFM_TD3:
         actor_net = ActorNetwork(cfg.actor_h_dim, action_size)
         self.actor = TrainState.create(
             apply_fn=actor_net.apply,
-            params=actor_net.init(actor_rng_key, sample_state[None, ...]),
-            target_params=actor_net.init(actor_rng_key, sample_state[None, ...]),
-            checkpoint=actor_net.init(actor_rng_key, sample_state[None, ...]),
+            params=actor_net.init(actor_rng_key, sample_state[None, ...], init_actor_rng_key),
+            target_params=actor_net.init(actor_rng_key, sample_state[None, ...], init_actor_rng_key),
+            checkpoint=actor_net.init(actor_rng_key, sample_state[None, ...], init_actor_rng_key),
             tx=optax.chain(
                 optax.adam(learning_rate=cfg.actor_lr)
             ),
@@ -208,6 +253,15 @@ class SFM_TD3:
                 optax.adam(learning_rate=cfg.psi_lr)
             ),
         )
+        
+        temp_net = Temperature()
+        self.temp_state = TrainState.create(
+            apply_fn=temp_net.apply,
+            params= temp_net.init(temp_rng_key),
+            tx=optax.chain(
+                optax.adam(learning_rate=cfg.psi_lr)
+            ),
+        )
 
         self.Pi_SF_ema = jnp.zeros((1, self.phi_dim))
         self.E_SF_ema = jnp.zeros((1, self.phi_dim))
@@ -219,17 +273,19 @@ class SFM_TD3:
 
         @chex.assert_max_traces(10)
         def _get_action(actor: TrainState,
-                        s: jnp.ndarray):
-            a = actor.apply_fn(actor.params, s)
-            return a
+                        s: jnp.ndarray,
+                        rng_key: jax.random.PRNGKey):
+            action, _, mean = actor.apply_fn(actor.params, s, rng_key)
+            return action, mean
 
         self._get_action = jax.jit(_get_action)
 
         @chex.assert_max_traces(10)
         def _get_action_chkpt(actor: TrainState,
-                              s: jnp.ndarray):
-            a = actor.apply_fn(actor.checkpoint, s)
-            return a
+                              s: jnp.ndarray,
+                              rng_key: jax.random.PRNGKey):
+            action, _, mean = actor.apply_fn(actor.checkpoint, s, rng_key)
+            return action, mean
 
         self._get_action_chkpt = jax.jit(_get_action_chkpt)
 
@@ -264,12 +320,54 @@ class SFM_TD3:
 
         self._compute_episodic_gap = jax.jit(_compute_episodic_gap)
 
-        @chex.assert_max_traces(1)
+        @chex.assert_max_traces(10)
+        def _get_SF_samples(actor: TrainState,
+                            actor_params: Params,
+                            psi_net: TrainState,
+                            s,
+                            rng_key: jax.random.PRNGKey):
+            print (rng_key)
+            a, log_pi, _ = actor.apply_fn(actor_params,
+                                     s,
+                                     rng_key)
+
+            psi_Q = psi_net.apply_fn(psi_net.target_params,
+                                     s,
+                                     a)
+            return a, psi_Q, log_pi
+            
+        self.get_SF_samples = jax.vmap(_get_SF_samples,
+                                       in_axes = (None, None, None, None, 0),
+                                       out_axes = (0))
+        
+        @chex.assert_max_traces(10)
+        def _update_temperature(
+            rng_key: jax.random.PRNGKey,
+            temp_state: TrainState,
+            entropy: jnp.ndarray,
+            target_entropy: float
+        ):
+            
+            def _loss_fn(
+                params: Params
+            ):
+                temp = temp_state.apply_fn(params)
+                temp_loss = -temp * (entropy + target_entropy).mean()
+                return temp_loss, {'temperature': temp,
+                                   'temp_loss': temp_loss}
+            
+            info, grads = jax.value_and_grad(_loss_fn, has_aux=True)(temp_state.params)
+            new_temp_net = temp_state.apply_gradients(grads=grads)
+            return rng_key, new_temp_net, info
+        self.update_temperature = jax.jit(_update_temperature)
+    
+        @chex.assert_max_traces(5)
         def _update_actor(
             rng_key: jax.random.PRNGKey,
             featurizer: TrainState,
             actor: TrainState,
             psi_net: TrainState,
+            temp_state: TrainState,
             s: jnp.ndarray,
             s_next: jnp.ndarray,
             E_traj_s: jnp.ndarray,
@@ -280,19 +378,25 @@ class SFM_TD3:
             ema_counter: jnp.int32,
             ema_decay: jnp.float32,
         ):
-            a_next = actor.apply_fn(actor.params,
-                                    s_next)
-            next_psi = psi_net.apply_fn(psi_net.target_params,
-                                        s_next,
-                                        a_next)[0]
-
+            rng_key, a_next_key = jax.random.split(rng_key)
+            # print (len(a_next_keys), a_next_keys)
+            _, next_psi_Qs, _ = self.get_SF_samples(actor,
+                                              actor.params,
+                                              psi_net,
+                                              s_next,
+                                              jax.random.split(a_next_key, self.num_a_samples))
+            next_psi = next_psi_Qs.mean(axis=0)[0, :, :-1]
+            
             E_phi = self._featurize_states(featurizer, E_traj_s)
             
             ind = -2
             E_end_s = E_traj_s[ind:ind+1]
-            E_end_a = actor.apply_fn(actor.params,
-                                     E_end_s)
-            E_end_SF = psi_net.apply_fn(psi_net.params, E_end_s, E_end_a)[0]
+            rng_key, E_a_key = jax.random.split(rng_key)
+            E_end_a, _, _ = actor.apply_fn(actor.params,
+                                          E_end_s,
+                                          E_a_key)
+            
+            E_end_SF = psi_net.apply_fn(psi_net.params, E_end_s, E_end_a)[0][:, :-1]
 
             E_traj_SF = get_discounted_sum(jnp.expand_dims(E_phi[:-2], axis=0), E_traj_gamma[:-2]) + E_traj_gamma[-2] * E_end_SF
 
@@ -301,32 +405,48 @@ class SFM_TD3:
                                                      ema_decay,
                                                      ema_counter)
 
+            alpha = temp_state.apply_fn(temp_state.params)
+            rng_key, a_key = jax.random.split(rng_key)
+
             def _loss_fn(params: Params,
                          Pi_SF_ema: jnp.ndarray):
                 # DPG loss from the Psi_network
-                a = actor.apply_fn(params, s)
-                psi = psi_net.apply_fn(psi_net.params,
-                                       s,
-                                       a)[0]
+                _, psi_Qs, a_log_probs = self.get_SF_samples(actor,
+                                             params,
+                                             psi_net,
+                                             s,
+                                             jax.random.split(a_key, self.num_a_samples))
+                psi = psi_Qs.mean(axis=0)[0][:, :-1]
+                
 
                 Pi_SF = jnp.mean(psi - gamma * next_psi, axis=0, keepdims=True) / (1. - gamma)
 
                 Pi_SF_ema, _ = update_ema(Pi_SF,
-                                            Pi_SF_ema,
-                                            ema_decay,
-                                            ema_counter)
+                                          Pi_SF_ema,
+                                          ema_decay,
+                                          ema_counter)
 
-                L_im_gap_batch = (((E_SF_ema_debiased[0] - Pi_SF[0]) * (E_SF_ema_debiased[0] - Pi_SF_ema[0]) * (1. - gamma) * (1. - gamma)))
-                loss = L_im_gap_batch.sum()
+                L_im_gap_batch = ((E_SF_ema_debiased[0] - jax.lax.stop_gradient(Pi_SF_ema[0])) * (E_SF_ema_debiased[0] - Pi_SF[0])) * ((1. - gamma)**2)
+                # L_im_gap_batch = (((E_SF_ema_debiased[0] - Pi_SF[0]) * (1. - gamma))**2)
+                loss_gap = L_im_gap_batch.sum()
+                
+                a_log_prob = a_log_probs #[0]
+                # Q = psi_Qs[0].min(axis=0)[:, -1:]
+                loss_ent = (alpha * a_log_prob).mean()
+                
+                loss = loss_gap + loss_ent
 
                 return loss, {
                     "actor/loss": loss,
+                    "actor/loss_gap": loss_gap,
+                    "actor/loss_ent": loss_ent,
                     "actor/SF_pi_mean": jnp.abs(Pi_SF_ema).mean(),
                     "actor/SF_E_mean": jnp.abs(E_SF_ema).mean(),
                     "actor/Max_L_im_gap": L_im_gap_batch.max(),
                     "actor/Min_L_im_gap": L_im_gap_batch.min(),
                     "Pi_SF_ema": Pi_SF_ema,
                     "E_SF_ema": E_SF_ema,
+                    "entropy": a_log_prob
                 }
 
             info, grads = jax.value_and_grad(_loss_fn, has_aux=True)(actor.params, Pi_SF_ema)
@@ -335,56 +455,56 @@ class SFM_TD3:
 
         self.update_actor = jax.jit(_update_actor)
 
-        @chex.assert_max_traces(1)
+        @chex.assert_max_traces(5)
         def _update_psi(
             rng_key: jax.random.PRNGKey,
             actor: TrainState,
             psi_net: TrainState,
             featurizer: TrainState,
+            temp_state: TrainState,
             s: jnp.ndarray,
             a: jnp.ndarray,
             s_next: jnp.ndarray,
             gamma: jnp.float32,
         ):
-            rng_key, noise_key = jax.random.split(rng_key)
-            # FIXME: Can get rid of self below
-            noise = (
-                jax.random.normal(noise_key, shape=a.shape) * self.target_noise
-            ).clip(-self.target_noise_clip, self.target_noise_clip)
+            rng_key, a_next_key = jax.random.split(rng_key)
+            a_next, a_next_log_prob, _ = actor.apply_fn(actor.params, s_next, a_next_key)
 
-            # Make sure the noisy action is within the valid bounds.
-            a_next = (
-                actor.apply_fn(actor.params,
-                               s_next
-                               ) + noise
-            ).clip(-1, 1)
-
-            target_psis = psi_net.apply_fn(
+            target_psi_Qs = psi_net.apply_fn(
                 psi_net.target_params,
                 s_next,
                 a_next
             )
+            
+            target_psis = target_psi_Qs[:,:,:-1]
+            target_Qs = target_psi_Qs[:,:,-1:]
 
             phi_state = self._featurize_states(featurizer, s)
+            
+            alpha = temp_state.apply_fn(temp_state.params)
 
             target_psi = phi_state + gamma * jnp.mean(target_psis, axis=0)
+            target_Q = -alpha * a_next_log_prob + gamma * jnp.min(target_Qs, axis=0)
 
             def _psi_loss_fn(
                 params: Params,
             ):
-                psi1, psi2 = psi_net.apply_fn(params,
-                                              s,
-                                              a)
+                psi_Q1, psi_Q2 = psi_net.apply_fn(params,
+                                                  s,
+                                                  a)
 
-                psi_loss = ((psi1 - target_psi) ** 2) + ((psi2 - target_psi) ** 2)
-                loss = psi_loss.mean()
+                loss_psi = (((psi_Q1[:,:-1] - target_psi) ** 2) + ((psi_Q2[:, :-1] - target_psi) ** 2)).mean()
+                loss_Q = 0 #(((psi_Q1[:,-1:] - target_Q) ** 2) + ((psi_Q2[:, -1:] - target_Q) ** 2)).mean()
+                loss = loss_psi + loss_Q
 
                 return loss, {
-                    "critic/SF_loss": loss,
-                    "critic/SF1_mean": psi1.mean(),
-                    "critic/SF2_mean": psi2.mean(),
-                    "critic/SF1_norm": jnp.abs(psi1).sum(axis=-1).mean(),
-                    "critic/SF2_norm": jnp.abs(psi2).sum(axis=-1).mean(),
+                    "critic/SF_loss": loss_psi,
+                    "critic/Q_loss": loss_Q,
+                    "critic/loss": loss,
+                    "critic/SF1_mean": psi_Q1[:,:-1].mean(),
+                    "critic/SF2_mean": psi_Q2[:,:-1].mean(),
+                    "critic/SF1_norm": jnp.abs(psi_Q1[:,:-1]).sum(axis=-1).mean(),
+                    "critic/SF2_norm": jnp.abs(psi_Q2[:,:-1]).sum(axis=-1).mean(),
                 }
 
             info, grads = jax.value_and_grad(_psi_loss_fn, has_aux=True)(psi_net.params)
@@ -421,13 +541,15 @@ class SFM_TD3:
 
     def get_action(self, state, train=False, rng_key=None, use_checkpoint=False):
         if use_checkpoint:
-            action = self._get_action_chkpt(self.actor, state)
+            action, action_mean = self._get_action_chkpt(self.actor, state, rng_key)
         else:
-            action = self._get_action(self.actor, state)
-        action = jax.device_get(action)
-        if train:
-            action += jax.random.normal(rng_key, action.shape) * self.action_noise
+            action, action_mean = self._get_action(self.actor, state, rng_key)
+
         # FIXME: Add the part of max_action
+        if train:
+            action = jax.device_get(action)
+        else:
+            action = jax.device_get(action_mean)
         return np.clip(action, -1, 1)
 
     def get_episodic_gap(self,
@@ -458,6 +580,7 @@ class SFM_TD3:
             self.actor,
             self.psi,
             self.featurizer.state,
+            self.temp_state,
             s,
             a,
             s_next,
@@ -465,31 +588,40 @@ class SFM_TD3:
         )
         train_metrics.update(psi_info[1])
 
-        if self.step % self.update_actor_frequency == 0:
-            self.rng_key, self.actor, actor_info = self.update_actor(
-                self.rng_key,
-                self.featurizer.state,
-                self.actor,
-                self.psi,
-                s,
-                s_next,
-                E_traj_s,
-                E_traj_gamma,
-                self.E_SF_ema,
-                self.Pi_SF_ema,
-                gamma,
-                ema_counter=self.step,
-                ema_decay=.98,
-            )
-            self.Pi_SF_ema = actor_info[1]['Pi_SF_ema']
-            self.E_SF_ema = actor_info[1]['E_SF_ema']
-            del actor_info[1]['Pi_SF_ema']
-            del actor_info[1]['E_SF_ema']
-            actor_info[1]['phi_min'] = self.psi_min_target
-            actor_info[1]['phi_max'] = self.psi_max_target
-            train_metrics.update(actor_info[1])
-            
-            self.psi = self.update_targets(self.psi)
+        # if self.step % self.update_actor_frequency == 0:
+        self.rng_key, self.actor, actor_info = self.update_actor(
+            self.rng_key,
+            self.featurizer.state,
+            self.actor,
+            self.psi,
+            self.temp_state,
+            s,
+            s_next,
+            E_traj_s,
+            E_traj_gamma,
+            self.E_SF_ema,
+            self.Pi_SF_ema,
+            gamma,
+            ema_counter=self.step,
+            ema_decay=.95,
+        )
+        self.Pi_SF_ema = actor_info[1]['Pi_SF_ema']
+        self.E_SF_ema = actor_info[1]['E_SF_ema']
+        del actor_info[1]['Pi_SF_ema']
+        del actor_info[1]['E_SF_ema']
+        actor_info[1]['phi_min'] = self.psi_min_target
+        actor_info[1]['phi_max'] = self.psi_max_target
+        train_metrics.update(actor_info[1])
+        
+        # self.rng_key, self.temp_state, temp_info = self.update_temperature(
+        #     self.rng_key,
+        #     self.temp_state,
+        #     actor_info[1]['entropy'],
+        #     self.target_entropy
+        # )
+        # train_metrics.update(temp_info[1])
+        
+        self.psi = self.update_targets(self.psi)
 
         featurizer_info = self.featurizer.update(
             s=s,
@@ -543,8 +675,9 @@ if __name__ == "__main__":
             project=cfg.wandb_project,
             entity=cfg.wandb_entity,
             sync_tensorboard=True,
-            group=f"SFM_TD3/%s/%s_%s"
+            group=f"SFM_SAC_ds_minQ_K%s_npalpha_v11/%s/%s_%s"
             % (
+                cfg.num_a_samples,
                 cfg.env,
                 cfg.phi_name,
                 cfg.wandb_suffix
@@ -563,7 +696,7 @@ if __name__ == "__main__":
     # Set up agent
     rng_key, network_rngkey = jax.random.split(rng_key)
 
-    agent = SFM_TD3(
+    agent = SFM_SAC(
         network_rngkey,
         state_size,
         action_size,
@@ -594,7 +727,7 @@ if __name__ == "__main__":
     max_eps_since_update = 1
     train_metrics = {}
 
-    cprint (f"Training SFM (TD3) on {cfg.env} for {cfg.steps} environment steps", "green")
+    cprint (f"Training SFM (TD7) on {cfg.env} for {cfg.steps} environment steps", "green")
     for step in pbar:
 
         if step == cfg.step_reset_checkpoint_eps:

@@ -2,7 +2,7 @@
 
 Official implementation of Successor Feature Matching (SFM) along with state-only imitation learning baselines.
 
-### [Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching]() 
+### [Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching](https://arnavkj1995.github.io/SFM) 
 
 by [Arnav Kumar Jain](https://arnavkj1995.github.io/), [Harley Wiltzer](https://harwiltz.github.io/), [Jesse Farebrother](https://brosa.ca/), [Irina Rish](https://sites.google.com/view/irinarish/), [Glen Berseth](https://neo-x.github.io/), and [Sanjiban Choudhury](https://sanjibanc.github.io/)
 
@@ -55,12 +55,14 @@ python agents/bc.py --env cheetah_run --seed 1
 If you build on our work or find it useful, please cite it using the following bibtex.
 
 ```bibtex
-@article{jain2024sfm,
+
+@inproceedings{
+    jain2025nonadversarial,
     title={Non-Adversarial Inverse Reinforcement Learning via Successor Feature Matching},
     author={Arnav Kumar Jain and Harley Wiltzer and Jesse Farebrother and Irina Rish and Glen Berseth and Sanjiban Choudhury},
-    journal={CoRR},
-    volume={abs/2411.07007},
-    year={2024}
+    booktitle={The Thirteenth International Conference on Learning Representations},
+    year={2025},
+    url={https://openreview.net/forum?id=LvRQgsvd5V}
 }
 ```
 
